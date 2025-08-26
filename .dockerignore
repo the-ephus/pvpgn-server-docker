@@ -1,0 +1,43 @@
+# Git files
+.git
+.gitignore
+.github
+
+# Build artifacts
+build/
+*.o
+*.so
+*.a
+
+# Documentation
+*.md
+docs/
+
+# CI/CD files
+.travis.yml
+appveyor.yml
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Docker files (don't copy into container)
+Dockerfile
+docker-compose.yml
+.dockerignore
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+*.log
+
+# Config examples (we'll copy the templates)
+config/

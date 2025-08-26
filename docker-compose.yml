@@ -1,0 +1,77 @@
+version: '3.8'
+
+services:
+  pvpgn-bnetd:
+    build: .
+    container_name: pvpgn-bnetd
+    restart: unless-stopped
+    ports:
+      # Battle.net game port
+      - "6112:6112"
+      # WarCraft 3 route port
+      - "6200:6200"
+    volumes:
+      # Configuration files
+      - ./config/pvpgn:/usr/local/pvpgn/etc/pvpgn:ro
+      # Persistent data (accounts, logs, etc.)
+      - pvpgn-data:/usr/local/pvpgn/var
+      # Log files
+      - pvpgn-logs:/usr/local/pvpgn/logs
+    environment:
+      # Set timezone (optional)
+      - TZ=UTC
+    networks:
+      - pvpgn-network
+
+  # Diablo 2 Character Server (optional)
+  pvpgn-d2cs:
+    build: .
+    container_name: pvpgn-d2cs
+    restart: unless-stopped
+    ports:
+      # Diablo 2 realm port
+      - "6113:6113"
+    volumes:
+      # Configuration files
+      - ./config/pvpgn:/usr/local/pvpgn/etc/pvpgn:ro
+      # Persistent data
+      - pvpgn-data:/usr/local/pvpgn/var
+      # Log files
+      - pvpgn-logs:/usr/local/pvpgn/logs
+    command: ["/usr/local/pvpgn/sbin/d2cs", "-f"]
+    depends_on:
+      - pvpgn-bnetd
+    networks:
+      - pvpgn-network
+    profiles:
+      - diablo2
+
+  # Diablo 2 Database Server (optional)
+  pvpgn-d2dbs:
+    build: .
+    container_name: pvpgn-d2dbs
+    restart: unless-stopped
+    volumes:
+      # Configuration files
+      - ./config/pvpgn:/usr/local/pvpgn/etc/pvpgn:ro
+      # Persistent data
+      - pvpgn-data:/usr/local/pvpgn/var
+      # Log files
+      - pvpgn-logs:/usr/local/pvpgn/logs
+    command: ["/usr/local/pvpgn/sbin/d2dbs", "-f"]
+    depends_on:
+      - pvpgn-bnetd
+    networks:
+      - pvpgn-network
+    profiles:
+      - diablo2
+
+volumes:
+  pvpgn-data:
+    driver: local
+  pvpgn-logs:
+    driver: local
+
+networks:
+  pvpgn-network:
+    driver: bridge

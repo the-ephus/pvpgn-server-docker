@@ -54,6 +54,86 @@ Set `loglevels = fatal,error,warn,info,debug,trace` in `bnetd.conf` before obtai
 Submit pull requests to contribute to this project. Utilize C++11 features and adhere to the [C++ Core Guidelines](https://github.com/isocpp/CppCoreGuidelines/blob/master/CppCoreGuidelines.md) whenever possible.
 
 ## Building
+
+### Docker (Recommended)
+
+The easiest way to run PvPGN is using Docker. This method provides a consistent environment and requires no manual dependency installation.
+
+#### Quick Start
+
+1. **Clone and build the Docker image:**
+   ```bash
+   git clone https://github.com/pvpgn/pvpgn-server.git
+   cd pvpgn-server
+   docker build -t pvpgn .
+   ```
+
+2. **Run the server:**
+   ```bash
+   # Basic setup - runs bnetd only
+   docker compose up pvpgn-bnetd
+   
+   # Full setup including Diablo 2 servers
+   docker compose --profile diablo2 up
+   ```
+
+3. **Your PvPGN server is now running!**
+   - Battle.net service: `localhost:6112`
+   - WarCraft 3 route: `localhost:6200`
+   - Diablo 2 realm: `localhost:6113` (if using diablo2 profile)
+
+#### Docker Configuration
+
+**Default Setup:**
+- Configuration files are in `./config/pvpgn/` (mounted read-only)
+- User accounts and data persist in Docker volumes
+- Logs are stored in a separate Docker volume
+
+**Available Services:**
+- `pvpgn-bnetd`: Main Battle.net daemon (always included)
+- `pvpgn-d2cs`: Diablo 2 Character Server (diablo2 profile)
+- `pvpgn-d2dbs`: Diablo 2 Database Server (diablo2 profile)
+
+**Volumes:**
+- `pvpgn-data`: User accounts, character saves, and game data
+- `pvpgn-logs`: Server logs
+- `./config/pvpgn`: Configuration files (host directory)
+
+**Ports:**
+- `6112`: Battle.net game port (StarCraft, WarCraft, Diablo)
+- `6113`: Diablo 2 realm port
+- `6200`: WarCraft 3 route port
+
+**Customizing Configuration:**
+1. Copy default config: `docker cp $(docker create pvpgn):/usr/local/pvpgn/etc/pvpgn ./config/`
+2. Edit files in `./config/pvpgn/` as needed
+3. Restart containers: `docker compose restart`
+
+**Common Configuration Changes:**
+- Edit `bnetd.conf` to customize server name, MOTD, etc.
+- Edit `address_translation.conf` if running behind NAT
+- Edit `versioncheck.json` to control client version requirements
+
+**Advanced Usage:**
+
+```bash
+# Build with MySQL support
+docker build --build-arg WITH_MYSQL=ON -t pvpgn-mysql .
+
+# Run with custom config location
+docker run -v /path/to/config:/usr/local/pvpgn/etc/pvpgn:ro pvpgn
+
+# Run in debug mode
+docker run pvpgn /usr/local/pvpgn/sbin/bnetd -D
+
+# View logs
+docker compose logs -f pvpgn-bnetd
+```
+
+For more detailed Docker configuration, see [Docker Documentation](#docker-documentation) below.
+
+### Manual Building
+
 See [docs/ports.md](https://github.com/pvpgn/pvpgn-server/blob/master/docs/ports.md) for operating systems and compilers that have been confirmed to work with PvPGN. Any operating system that supports WinAPI or POSIX, and any C++11 compliant compiler should be able to build PvPGN. The CMake files have been hardcoded to reject compilers older than Visual Studio 2015 and GCC 5.1.
 
 #### Windows
@@ -163,3 +243,226 @@ If your network interface is directly bound to public IP, PvPGN can figure it ou
     You should have received a copy of the GNU General Public License
     along with this program; if not, write to the Free Software
     Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+
+## Docker Documentation
+
+### Overview
+
+This repository includes Docker support for easy deployment of PvPGN servers. The Docker setup uses a multi-stage build to create optimized runtime containers with minimal overhead.
+
+### Architecture
+
+- **Multi-stage build**: Separate build and runtime environments for minimal image size
+- **Service separation**: Each PvPGN daemon runs in its own container
+- **Volume persistence**: User data and logs persist across container restarts
+- **Network isolation**: Services communicate through a private Docker network
+
+### Services
+
+#### pvpgn-bnetd (Main Service)
+The core Battle.net daemon that handles game connections for most supported games.
+
+**Ports:**
+- 6112: Main Battle.net port
+- 6200: WarCraft 3 route port
+
+**Supported Games:**
+- StarCraft / Brood War
+- WarCraft 2 Battle.net Edition
+- WarCraft 3 Reign of Chaos / The Frozen Throne
+- Diablo (basic support)
+- Command & Conquer series (Westwood Online)
+
+#### pvpgn-d2cs (Diablo 2 Character Server)
+Handles Diablo 2 character management and realm connections.
+
+**Port:** 6113
+**Games:** Diablo 2, Diablo 2: Lord of Destruction
+
+#### pvpgn-d2dbs (Diablo 2 Database Server)
+Manages Diablo 2 character database storage.
+
+**No exposed ports** (internal communication only)
+
+### Quick Start Examples
+
+```bash
+# Just Battle.net games (StarCraft, WarCraft, etc.)
+docker compose up pvpgn-bnetd
+
+# Full Diablo 2 support
+docker compose --profile diablo2 up
+
+# Run in background
+docker compose up -d
+
+# View logs
+docker compose logs -f
+
+# Stop services
+docker compose down
+```
+
+> **Note:** These examples use `docker compose` (modern syntax). If you have the older standalone docker-compose installed, use `docker-compose` instead.
+
+### Configuration Management
+
+The Docker setup mounts configuration files from the host directory `./config/pvpgn/` into containers as read-only. This allows you to modify server settings without rebuilding the Docker image.
+
+**Initial setup:**
+```bash
+# Configuration files are included in the repository
+# Edit any files in ./config/pvpgn/ as needed
+nano ./config/pvpgn/bnetd.conf
+```
+
+**Key configuration files:**
+- `bnetd.conf`: Main server configuration
+- `d2cs.conf`: Diablo 2 character server settings
+- `d2dbs.conf`: Diablo 2 database server settings
+- `address_translation.conf`: NAT/firewall configuration
+- `versioncheck.json`: Client version requirements
+
+**Applying changes:**
+```bash
+# Restart services to apply config changes
+docker compose restart
+```
+
+### Data Persistence
+
+User accounts, character saves, and logs are stored in Docker volumes that persist across container restarts:
+
+- `pvpgn-data`: User accounts, character data, game files
+- `pvpgn-logs`: Server log files
+
+**Managing data:**
+```bash
+# Backup user data
+docker run --rm -v pvpgn-data:/data -v $(pwd):/backup alpine \
+  tar czf /backup/pvpgn-backup.tar.gz -C /data .
+
+# Restore user data
+docker run --rm -v pvpgn-data:/data -v $(pwd):/backup alpine \
+  tar xzf /backup/pvpgn-backup.tar.gz -C /data
+
+# View data location
+docker volume inspect pvpgn-data
+```
+
+### Networking
+
+The default configuration binds to all interfaces (`0.0.0.0`) which works correctly in Docker. For external access, ensure the following ports are accessible:
+
+**Required ports:**
+- 6112 (TCP): Battle.net games
+- 6200 (TCP): WarCraft 3 routing
+
+**Optional ports:**
+- 6113 (TCP): Diablo 2 realm (if using d2cs)
+
+**For NAT/Firewall environments:**
+Edit `./config/pvpgn/address_translation.conf` to configure IP address translation.
+
+### Customization
+
+#### Build Arguments
+
+```bash
+# Build with MySQL support
+docker build --build-arg WITH_MYSQL=ON --build-arg WITH_LUA=ON -t pvpgn-custom .
+
+# Build with SQLite support
+docker build --build-arg WITH_SQLITE3=ON -t pvpgn-sqlite .
+```
+
+#### Custom Docker Compose
+
+```yaml
+version: '3.8'
+services:
+  pvpgn:
+    build: .
+    ports:
+      - "6112:6112"
+    volumes:
+      - ./my-config:/usr/local/pvpgn/etc/pvpgn:ro
+      - pvpgn-data:/usr/local/pvpgn/var
+    environment:
+      - TZ=America/New_York
+```
+
+### Troubleshooting
+
+**Common issues:**
+
+1. **Port conflicts:**
+   ```bash
+   # Check if ports are in use
+   netstat -tulpn | grep 6112
+   
+   # Use different ports
+   docker compose run -p 16112:6112 pvpgn-bnetd
+   ```
+
+2. **Configuration errors:**
+   ```bash
+   # Check container logs
+   docker compose logs pvpgn-bnetd
+   
+   # Run in debug mode
+   docker run --rm pvpgn /usr/local/pvpgn/sbin/bnetd -D
+   ```
+
+3. **Permission issues:**
+   ```bash
+   # Fix config permissions
+   sudo chown -R $USER:$USER ./config/
+   ```
+
+4. **NAT/Firewall problems:**
+   - Edit `address_translation.conf` to map internal container IPs to external addresses
+   - Ensure firewall allows traffic on required ports
+
+### Performance Tuning
+
+For production deployments:
+
+```yaml
+version: '3.8'
+services:
+  pvpgn-bnetd:
+    build: .
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: '1.0'
+    ulimits:
+      nofile:
+        soft: 65536
+        hard: 65536
+```
+
+### Security Considerations
+
+- Configuration files are mounted read-only to prevent container compromise
+- Services run as non-root user `pvpgn`
+- Use Docker secrets for sensitive configuration in production
+- Regularly update the base Ubuntu image for security patches
+
+### Development
+
+For development and testing:
+
+```bash
+# Build development image
+docker build -t pvpgn-dev .
+
+# Run with source code mounted
+docker run -v $(pwd):/src pvpgn-dev
+
+# Interactive debugging
+docker run -it --entrypoint /bin/bash pvpgn-dev
+```
